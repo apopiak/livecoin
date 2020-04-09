@@ -104,10 +104,10 @@ default-features = false
 package = 'frame-system'
 version = '2.0.0-alpha.5'
 
-[dependencies.template]
+[dependencies.livecoin]
 default-features = false
-package = 'pallet-template'
-path = '../pallets/template'
+package = 'pallet-livecoin'
+path = '../pallets/livecoin'
 version = '2.0.0-alpha.5'
 
 [dependencies.timestamp]
@@ -150,5 +150,5 @@ std = [
     'system/std',
     'timestamp/std',
     'transaction-payment/std',
-    'template/std',
+    'livecoin/std',
 ]

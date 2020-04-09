@@ -2672,9 +2672,9 @@ dependencies = [
  "pallet-aura",
  "pallet-balances",
  "pallet-grandpa",
+ "pallet-livecoin",
  "pallet-randomness-collective-flip",
  "pallet-sudo",
- "pallet-template",
  "pallet-timestamp",
  "pallet-transaction-payment",
  "parity-scale-codec",
@@ -2903,6 +2903,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-livecoin"
+version = "2.0.0-alpha.5"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "safe-mix",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+]
+
+[[package]]
 name = "pallet-randomness-collective-flip"
 version = "2.0.0-alpha.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2948,19 +2961,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
-]
-
-[[package]]
-name = "pallet-template"
-version = "2.0.0-alpha.5"
-dependencies = [
- "frame-support",
- "frame-system",
- "parity-scale-codec",
- "safe-mix",
- "sp-core",
- "sp-io",
- "sp-runtime",
 ]
 
 [[package]]
