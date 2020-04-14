@@ -36,6 +36,8 @@ decl_storage! {
 	trait Store for Module<T: Trait> as TemplateModule {
 		TotalSupply get(total_supply): u64;
 
+		Owner get(owner): T::AccountId;
+
 		Balances get(balance_of): map hasher(blake2_128_concat) T::AccountId => u64;
 		Minters get(is_minter): map hasher(blake2_128_concat) T::AccountId => bool;
 	}
@@ -57,6 +59,8 @@ decl_event!(
 // The pallet's errors
 decl_error! {
 	pub enum Error for Module<T: Trait> {
+		/// An account that is not the owner tried to add or remove a minter.
+		NotOwner,
 		/// An account without minting privilege tried to mint.
 		NotMinter,
 		/// An account does not have enough balance to perform the operation.
@@ -90,7 +94,9 @@ decl_module! {
 		}
 
 		pub fn add_minter(origin, minter: T::AccountId) -> DispatchResult {
-			let _sender = ensure_signed(origin)?;
+			let sender = ensure_signed(origin)?;
+			// make sure only the owner can add minters
+			let _owner = Self::ensure_owner(sender)?;
 
 			<Minters<T>>::insert(&minter, true);
 
@@ -99,7 +105,9 @@ decl_module! {
 		}
 
 		pub fn remove_minter(origin, minter: T::AccountId) -> DispatchResult {
-			let _sender = ensure_signed(origin)?;
+			let sender = ensure_signed(origin)?;
+			// make sure only the owner can remove minters
+			let _owner = Self::ensure_owner(sender)?;
 
 			let minter = Self::ensure_minter(minter)?;
 			<Minters<T>>::remove(&minter);
@@ -132,6 +140,13 @@ decl_module! {
 }
 
 impl<T: Trait> Module<T> {
+	fn ensure_owner(account: T::AccountId) -> Result<T::AccountId, DispatchError> {
+		if <Owner<T>>::get() != account {
+			return Err(DispatchError::from(Error::<T>::NotOwner));
+		}
+		Ok(account)
+	}
+
 	fn ensure_minter(account: T::AccountId) -> Result<T::AccountId, DispatchError> {
 		if !Self::is_minter(&account) {
 			return Err(DispatchError::from(Error::<T>::NotMinter));
