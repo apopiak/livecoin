@@ -54,3 +54,16 @@ fn burning_works() {
 		assert_eq!(Livecoin::balance_of(1), 21);
 	});
 }
+
+#[test]
+fn transfer_works() {
+	new_test_ext().execute_with(|| {
+		<Minters<Test>>::insert(&1, true);
+
+		assert_ok!(Livecoin::mint(Origin::signed(1), 1, 42));
+		assert_ok!(Livecoin::transfer(Origin::signed(1), 2, 20));
+
+		assert_eq!(Livecoin::balance_of(1), 22);
+		assert_eq!(Livecoin::balance_of(2), 20);
+	});
+}
