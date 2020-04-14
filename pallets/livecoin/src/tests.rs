@@ -1,26 +1,56 @@
 // Tests to be written here
 
-use crate::{Error, mock::*};
-use frame_support::{assert_ok, assert_noop};
+use super::*;
+
+use crate::{mock::*, Error};
+use frame_support::{assert_noop, assert_ok};
 
 #[test]
-fn it_works_for_default_value() {
+fn minting_works() {
 	new_test_ext().execute_with(|| {
-		// Just a dummy test for the dummy function `do_something`
-		// calling the `do_something` function with a value 42
-		assert_ok!(TemplateModule::do_something(Origin::signed(1), 42));
-		// asserting that the stored value is equal to what we stored
-		assert_eq!(TemplateModule::something(), Some(42));
+		<Minters<Test>>::insert(&1, true);
+		
+		assert_ok!(Livecoin::mint(Origin::signed(1), 4, 42));
+		
+		assert_eq!(Livecoin::balance_of(4), 42);
 	});
 }
 
 #[test]
-fn correct_error_for_none_value() {
+fn can_add_minter() {
 	new_test_ext().execute_with(|| {
-		// Ensure the correct error is thrown on None value
-		assert_noop!(
-			TemplateModule::cause_error(Origin::signed(1)),
-			Error::<Test>::NoneValue
-		);
+		assert!(!Livecoin::is_minter(2));
+
+		assert_ok!(Livecoin::add_minter(Origin::signed(1), 2));
+
+		assert!(!Livecoin::is_minter(1));
+		assert!(Livecoin::is_minter(2));
+		assert!(!Livecoin::is_minter(3));
+	});
+}
+
+#[test]
+fn can_only_remove_existing_minter() {
+	new_test_ext().execute_with(|| {
+		assert!(!Livecoin::is_minter(2));
+
+		assert_eq!(Livecoin::remove_minter(Origin::signed(1), 2), Err(DispatchError::from(Error::<Test>::NotMinter)));
+
+		assert_ok!(Livecoin::add_minter(Origin::signed(1), 2));
+		assert!(Livecoin::is_minter(2));
+
+		assert_ok!(Livecoin::remove_minter(Origin::signed(1), 2));
+	});
+}
+
+#[test]
+fn burning_works() {
+	new_test_ext().execute_with(|| {
+		<Minters<Test>>::insert(&1, true);
+
+		assert_ok!(Livecoin::mint(Origin::signed(1), 1, 42));
+		assert_ok!(Livecoin::burn(Origin::signed(1), 21));
+
+		assert_eq!(Livecoin::balance_of(1), 21);
 	});
 }

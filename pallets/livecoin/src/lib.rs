@@ -8,8 +8,10 @@
 
 /// For more guidance on Substrate FRAME, see the example pallet
 /// https://github.com/paritytech/substrate/blob/master/frame/example/src/lib.rs
-
-use frame_support::{decl_module, decl_storage, decl_event, decl_error, dispatch};
+use frame_support::{
+	decl_error, decl_event, decl_module, decl_storage,
+	dispatch::{DispatchError, DispatchResult},
+};
 use system::ensure_signed;
 
 #[cfg(test)]
@@ -32,30 +34,34 @@ decl_storage! {
 	// storage items are isolated from other pallets.
 	// ---------------------------------vvvvvvvvvvvvvv
 	trait Store for Module<T: Trait> as TemplateModule {
-		// Just a dummy storage item.
-		// Here we are declaring a StorageValue, `Something` as a Option<u32>
-		// `get(fn something)` is the default getter which returns either the stored `u32` or `None` if nothing stored
-		Something get(fn something): Option<u32>;
+		TotalSupply get(total_supply): u64;
+
+		Balances get(balance_of): map hasher(blake2_128_concat) T::AccountId => u64;
+		Minters get(is_minter): map hasher(blake2_128_concat) T::AccountId => bool;
 	}
 }
 
 // The pallet's events
 decl_event!(
-	pub enum Event<T> where AccountId = <T as system::Trait>::AccountId {
-		/// Just a dummy event.
-		/// Event `Something` is declared with a parameter of the type `u32` and `AccountId`
-		/// To emit this event, we call the deposit function, from our runtime functions
-		SomethingStored(u32, AccountId),
+	pub enum Event<T>
+	where
+		AccountId = <T as system::Trait>::AccountId,
+	{
+		Mint(AccountId, AccountId, u64),
+		Burn(AccountId, u64),
+		MinterAdded(AccountId),
+		MinterRemoved(AccountId),
 	}
 );
 
 // The pallet's errors
 decl_error! {
 	pub enum Error for Module<T: Trait> {
-		/// Value was None
-		NoneValue,
-		/// Value reached maximum and cannot be incremented further
-		StorageOverflow,
+		/// An account without minting privilege tried to mint.
+		NotMinter,
+		/// An account does not have enough balance to perform the operation.
+		InsufficientBalance,
+		BalanceOverflow,
 	}
 }
 
@@ -72,36 +78,90 @@ decl_module! {
 		// this is needed only if you are using events in your pallet
 		fn deposit_event() = default;
 
-		/// Just a dummy entry point.
-		/// function that can be called by the external world as an extrinsics call
-		/// takes a parameter of the type `AccountId`, stores it, and emits an event
-		pub fn do_something(origin, something: u32) -> dispatch::DispatchResult {
-			// Check it was signed and get the signer. See also: ensure_root and ensure_none
-			let who = ensure_signed(origin)?;
+		pub fn mint(origin, to_account: T::AccountId, amount: u64) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let minter = Self::ensure_minter(sender)?;
 
-			// Code to execute when something calls this.
-			// For example: the following line stores the passed in u32 in the storage
-			Something::put(something);
+			<TotalSupply>::mutate(|supply| *supply = supply.saturating_add(amount));
+			<Balances<T>>::mutate(&to_account, |balance| *balance = balance.saturating_add(amount));
 
-			// Here we are raising the Something event
-			Self::deposit_event(RawEvent::SomethingStored(something, who));
+			Self::deposit_event(RawEvent::Mint(minter, to_account, amount));
 			Ok(())
 		}
 
-		/// Another dummy entry point.
-		/// takes no parameters, attempts to increment storage value, and possibly throws an error
-		pub fn cause_error(origin) -> dispatch::DispatchResult {
-			// Check it was signed and get the signer. See also: ensure_root and ensure_none
-			let _who = ensure_signed(origin)?;
+		pub fn add_minter(origin, minter: T::AccountId) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
 
-			match Something::get() {
-				None => Err(Error::<T>::NoneValue)?,
-				Some(old) => {
-					let new = old.checked_add(1).ok_or(Error::<T>::StorageOverflow)?;
-					Something::put(new);
-					Ok(())
-				},
-			}
+			<Minters<T>>::insert(&minter, true);
+
+			Self::deposit_event(RawEvent::MinterAdded(minter));
+			Ok(())
 		}
+
+		pub fn remove_minter(origin, minter: T::AccountId) -> DispatchResult {
+			let _sender = ensure_signed(origin)?;
+
+			let minter = Self::ensure_minter(minter)?;
+			<Minters<T>>::remove(&minter);
+
+			Self::deposit_event(RawEvent::MinterRemoved(minter));
+			Ok(())
+		}
+
+		pub fn burn(origin, amount: u64) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			// make sure that only minters can burn coins
+			let minter = Self::ensure_minter(sender)?;
+
+			<Balances<T>>::try_mutate(&minter, |balance| -> Result<u64, DispatchError> {
+				*balance = balance.checked_sub(amount).ok_or(Error::<T>::InsufficientBalance)?;
+				Ok(*balance)
+			})?;
+			<TotalSupply>::mutate(|supply| *supply = supply.saturating_sub(amount));
+
+			Self::deposit_event(RawEvent::Burn(minter, amount));
+			Ok(())
+		}
+
+		pub fn transfer(origin, to_account: T::AccountId, amount: u64) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+
+			Self::transfer_from_to(&sender, &to_account, amount)
+		}
+	}
+}
+
+impl<T: Trait> Module<T> {
+	fn ensure_minter(account: T::AccountId) -> Result<T::AccountId, DispatchError> {
+		if !Self::is_minter(&account) {
+			return Err(DispatchError::from(Error::<T>::NotMinter));
+		}
+		Ok(account)
+	}
+
+	/// Transfer `amount` of coins from one account to another.
+	///
+	/// **Weight:**
+	/// - complexity: `O(1)`
+	/// - DB access: 2 storage map reads + 2 storage map writes
+	fn transfer_from_to(from: &T::AccountId, to: &T::AccountId, amount: u64) -> DispatchResult {
+		let from_balance = Self::balance_of(from);
+		let updated_from_balance = from_balance
+			.checked_sub(amount)
+			.ok_or(Error::<T>::InsufficientBalance)?;
+		let receiver_balance = Self::balance_of(&to);
+		let updated_to_balance = receiver_balance
+			.checked_add(amount)
+			.ok_or(Error::<T>::BalanceOverflow)?;
+
+		// ↑ verify ↑
+		// ↓ update ↓
+
+		// reduce from's balance
+		<Balances<T>>::insert(&from, updated_from_balance);
+		// increase receiver's balance
+		<Balances<T>>::insert(&to, updated_to_balance);
+
+		Ok(())
 	}
 }
