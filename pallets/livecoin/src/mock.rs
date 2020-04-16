@@ -16,12 +16,14 @@ impl_outer_origin! {
 // configuration traits of pallets we want to use.
 #[derive(Clone, Eq, PartialEq)]
 pub struct Test;
+
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 	pub const MaximumBlockWeight: Weight = 1024;
 	pub const MaximumBlockLength: u32 = 2 * 1024;
 	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
 }
+
 impl system::Trait for Test {
 	type Origin = Origin;
 	type Call = ();
@@ -43,10 +45,12 @@ impl system::Trait for Test {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 }
+
 impl Trait for Test {
 	type Event = ();
 }
-pub type TemplateModule = Module<Test>;
+
+pub type Livecoin = Module<Test>;
 
 // This function basically just builds a genesis storage key/value store according to
 // our desired mockup.
