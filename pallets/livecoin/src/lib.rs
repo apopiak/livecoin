@@ -82,17 +82,6 @@ decl_module! {
 		// this is needed only if you are using events in your pallet
 		fn deposit_event() = default;
 
-		pub fn mint(origin, to_account: T::AccountId, amount: u64) -> DispatchResult {
-			let sender = ensure_signed(origin)?;
-			let minter = Self::ensure_minter(sender)?;
-
-			<TotalSupply>::mutate(|supply| *supply = supply.saturating_add(amount));
-			<Balances<T>>::mutate(&to_account, |balance| *balance = balance.saturating_add(amount));
-
-			Self::deposit_event(RawEvent::Mint(minter, to_account, amount));
-			Ok(())
-		}
-
 		pub fn add_minter(origin, minter: T::AccountId) -> DispatchResult {
 			let sender = ensure_signed(origin)?;
 			// make sure only the owner can add minters
@@ -113,6 +102,17 @@ decl_module! {
 			<Minters<T>>::remove(&minter);
 
 			Self::deposit_event(RawEvent::MinterRemoved(minter));
+			Ok(())
+		}
+
+		pub fn mint(origin, to_account: T::AccountId, amount: u64) -> DispatchResult {
+			let sender = ensure_signed(origin)?;
+			let minter = Self::ensure_minter(sender)?;
+
+			<TotalSupply>::mutate(|supply| *supply = supply.saturating_add(amount));
+			<Balances<T>>::mutate(&to_account, |balance| *balance = balance.saturating_add(amount));
+
+			Self::deposit_event(RawEvent::Mint(minter, to_account, amount));
 			Ok(())
 		}
 
