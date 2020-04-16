@@ -60,7 +60,10 @@ decl_error! {
 	pub enum Error for Module<T: Trait> {
 		/// Tried to call a function that is limited to the owner of the stablecoin
 		/// while not being the owner.
-		NotOwner
+		NotOwner,
+		/// A non-minter account tried to mint.
+		NotMinter,
+		SupplyOverflow,
 	}
 }
 
@@ -86,9 +89,7 @@ decl_module! {
 			Ok(())
 		}
 
-		/// Just a dummy entry point.
-		/// function that can be called by the external world as an extrinsics call
-		/// takes a parameter of the type `AccountId`, stores it, and emits an event
+		/// Add an account as minter.
 		pub fn add_minter(origin, new_minter: T::AccountId) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let _owner = Self::ensure_owner(who)?;
@@ -99,6 +100,7 @@ decl_module! {
 			Ok(())
 		}
 
+		/// Remove an account from the set of minters.
 		pub fn remove_minter(origin, minter: T::AccountId) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let _owner = Self::ensure_owner(who)?;
@@ -108,6 +110,23 @@ decl_module! {
 			Self::deposit_event(RawEvent::MinterRemoved(minter));
 			Ok(())
 		}
+
+		/// Create `amount` of coins out of thin air and deposit them into `to_account`.
+		pub fn mint(origin, to_account: T::AccountId, amount: u64) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let minter = Self::ensure_minter(who)?;
+
+			let supply = Self::total_supply();
+			let new_supply = supply.checked_add(amount).ok_or(Error::<T>::SupplyOverflow)?;
+			// ^ verify
+			// v update
+			<TotalSupply>::put(new_supply);
+			<Balances<T>>::mutate(&to_account, |balance| {
+				*balance = balance.saturating_add(amount);
+			});
+			Self::deposit_event(RawEvent::Mint(minter, to_account, amount));
+			Ok(())
+		}
 	}
 }
 
@@ -115,6 +134,13 @@ impl<T: Trait> Module<T> {
 	fn ensure_owner(acc: T::AccountId) -> Result<T::AccountId, DispatchError> {
 		if acc != Self::owner() {
 			return Err(DispatchError::from(Error::<T>::NotOwner));
+		}
+		Ok(acc)
+	}
+
+	fn ensure_minter(acc: T::AccountId) -> Result<T::AccountId, DispatchError> {
+		if !Self::is_minter(&acc) {
+			return Err(DispatchError::from(Error::<T>::NotMinter));
 		}
 		Ok(acc)
 	}
