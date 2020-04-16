@@ -1,26 +1,42 @@
 // Tests to be written here
+use super::*;
 
-use crate::{Error, mock::*};
-use frame_support::{assert_ok, assert_noop};
+use crate::{mock::*, Error};
+use frame_support::{assert_noop, assert_ok};
 
 #[test]
-fn can_set_supply() {
+fn can_add_minter() {
 	new_test_ext().execute_with(|| {
-		// Just a dummy test for the dummy function `do_something`
-		// calling the `do_something` function with a value 42
-		assert_ok!(Livecoin::set_supply(Origin::signed(1), 42));
-		// asserting that the stored value is equal to what we stored
-		assert_eq!(Livecoin::total_supply(), 42);
+		let owner = 1;
+		Owner::<Test>::put(owner);
+		let minter = 2;
+
+		assert_ok!(Livecoin::add_minter(Origin::signed(owner), minter));
+		assert!(Livecoin::is_minter(minter));
 	});
 }
 
-// #[test]
-// fn correct_error_for_none_value() {
-// 	new_test_ext().execute_with(|| {
-// 		// Ensure the correct error is thrown on None value
-// 		assert_noop!(
-// 			Livecoin::cause_error(Origin::signed(1)),
-// 			Error::<Test>::NoneValue
-// 		);
-// 	});
-// }
+#[test]
+fn can_remove_minter() {
+	new_test_ext().execute_with(|| {
+		let owner = 1;
+		Owner::<Test>::put(owner);
+		let minter = 2;
+		Minters::<Test>::insert(minter, true);
+
+		assert_ok!(Livecoin::remove_minter(Origin::signed(owner), minter));
+		assert!(!Livecoin::is_minter(minter));
+	});
+}
+
+#[test]
+fn only_owner_can_add_minter() {
+	new_test_ext().execute_with(|| {
+		let non_owner = 1;
+		let minter = 2;
+		assert_noop!(
+			Livecoin::add_minter(Origin::signed(non_owner), minter),
+			Error::<Test>::NotOwner
+		);
+	});
+}

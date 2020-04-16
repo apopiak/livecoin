@@ -8,7 +8,10 @@
 
 /// For more guidance on Substrate FRAME, see the example pallet
 /// https://github.com/paritytech/substrate/blob/master/frame/example/src/lib.rs
-use frame_support::{decl_error, decl_event, decl_module, decl_storage, dispatch};
+use frame_support::{
+	decl_error, decl_event, decl_module, decl_storage,
+	dispatch::{DispatchError, DispatchResult},
+};
 use system::ensure_signed;
 
 #[cfg(test)]
@@ -19,66 +22,100 @@ mod tests;
 
 /// The pallet's configuration trait.
 pub trait Trait: system::Trait {
-    // Add other types and constants required to configure this pallet.
+	// Add other types and constants required to configure this pallet.
 
-    /// The overarching event type.
-    type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+	/// The overarching event type.
+	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 }
 
 // This pallet's storage items.
 decl_storage! {
-    trait Store for Module<T: Trait> as Livecoin {
-        TotalSupply get(fn total_supply): u64;
-    }
+	trait Store for Module<T: Trait> as Livecoin {
+		Owner get(fn owner): T::AccountId;
+
+		TotalSupply get(fn total_supply): u64;
+
+		Balances get(fn balance_of): map hasher(blake2_128_concat) T::AccountId => u64;
+
+		Minters get(fn is_minter): map hasher(twox_64_concat) T::AccountId => bool;
+	}
 }
 
 // The pallet's events
 decl_event!(
-    pub enum Event<T>
-    where
-        AccountId = <T as system::Trait>::AccountId,
-    {
-        SupplyChanged(u64, AccountId),
-    }
+	pub enum Event<T>
+	where
+		AccountId = <T as system::Trait>::AccountId,
+	{
+		Mint(AccountId, AccountId, u64),
+		Burn(AccountId, u64),
+		MinterAdded(AccountId),
+		MinterRemoved(AccountId),
+		NewOwner(AccountId),
+	}
 );
 
 // The pallet's errors
 decl_error! {
-    pub enum Error for Module<T: Trait> {
-        /// Value was None
-        NoneValue,
-        /// Value reached maximum and cannot be incremented further
-        StorageOverflow,
-    }
+	pub enum Error for Module<T: Trait> {
+		/// Tried to call a function that is limited to the owner of the stablecoin
+		/// while not being the owner.
+		NotOwner
+	}
 }
 
 // The pallet's dispatchable functions.
 decl_module! {
-    /// The module declaration.
-    pub struct Module<T: Trait> for enum Call where origin: T::Origin {
-        // Initializing errors
-        // this includes information about your errors in the node's metadata.
-        // it is needed only if you are using errors in your pallet
-        type Error = Error<T>;
+	/// The module declaration.
+	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+		// Initializing errors
+		// this includes information about your errors in the node's metadata.
+		// it is needed only if you are using errors in your pallet
+		type Error = Error<T>;
 
-        // Initializing events
-        // this is needed only if you are using events in your pallet
-        fn deposit_event() = default;
+		// Initializing events
+		// this is needed only if you are using events in your pallet
+		fn deposit_event() = default;
 
-        /// Just a dummy entry point.
-        /// function that can be called by the external world as an extrinsics call
-        /// takes a parameter of the type `AccountId`, stores it, and emits an event
-        pub fn set_supply(origin, new_supply: u64) -> dispatch::DispatchResult {
-            // Check it was signed and get the signer. See also: ensure_root and ensure_none
-            let who = ensure_signed(origin)?;
+		pub fn set_owner(origin, new_owner: T::AccountId) -> DispatchResult {
+			let _who = ensure_signed(origin)?;
 
-            // Code to execute when something calls this.
-            // For example: the following line stores the passed in u32 in the storage
-            TotalSupply::put(new_supply);
+			<Owner<T>>::put(&new_owner);
 
-            // Here we are raising the Something event
-            Self::deposit_event(RawEvent::SupplyChanged(new_supply, who));
-            Ok(())
-        }
-    }
+			Self::deposit_event(RawEvent::NewOwner(new_owner));
+			Ok(())
+		}
+
+		/// Just a dummy entry point.
+		/// function that can be called by the external world as an extrinsics call
+		/// takes a parameter of the type `AccountId`, stores it, and emits an event
+		pub fn add_minter(origin, new_minter: T::AccountId) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let _owner = Self::ensure_owner(who)?;
+
+			<Minters<T>>::insert(&new_minter, true);
+
+			Self::deposit_event(RawEvent::MinterAdded(new_minter));
+			Ok(())
+		}
+
+		pub fn remove_minter(origin, minter: T::AccountId) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let _owner = Self::ensure_owner(who)?;
+
+			<Minters<T>>::remove(&minter);
+
+			Self::deposit_event(RawEvent::MinterRemoved(minter));
+			Ok(())
+		}
+	}
+}
+
+impl<T: Trait> Module<T> {
+	fn ensure_owner(acc: T::AccountId) -> Result<T::AccountId, DispatchError> {
+		if acc != Self::owner() {
+			return Err(DispatchError::from(Error::<T>::NotOwner));
+		}
+		Ok(acc)
+	}
 }
