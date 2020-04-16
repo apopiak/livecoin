@@ -2,6 +2,7 @@
 
 This repo tracks the progress of the live coding event. Have a look at the PRs to see the changes made. The master currently constains the initial state of the Substrate node template used before any changes were made.
 
++ [2020-04-16 Initial Live Coding Session](https://github.com/apopiak/livecoin/pull/1)
 
 ----------------------------------------------------------------
 
