@@ -1,10 +1,10 @@
 [package]
-authors = ['Anonymous']
-description = 'FRAME pallet template'
+authors = ['apopiak']
+description = 'example for a fiat-collateralized stablecoin'
 edition = '2018'
 homepage = 'https://substrate.dev'
 license = 'Unlicense'
-name = 'pallet-template'
+name = 'pallet-livecoin'
 repository = 'https://github.com/paritytech/substrate/'
 version = '2.0.0-alpha.5'
 
